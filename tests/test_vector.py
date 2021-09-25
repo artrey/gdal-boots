@@ -5,7 +5,6 @@ from gdal_boots.gdal import RasterDataset, VectorDataset
 
 
 def test_open_file(minsk_boundary_geojson):
-
     ds = VectorDataset.open(minsk_boundary_geojson)
 
     assert len(ds.layers) == 1
@@ -19,7 +18,6 @@ def test_rasterize():
     ref_ds = RasterDataset.open('tests/fixtures/extra/B05_20m.jp2')
 
     with tempfile.NamedTemporaryFile(suffix='.png') as fd:
-
         ds = RasterDataset.create(shape=ref_ds.shape, dtype=ref_ds.dtype, geoinfo=ref_ds.geoinfo)
         vec_ds.rasterize(ds)
         ds.to_file(fd.name, options.GTiff())
