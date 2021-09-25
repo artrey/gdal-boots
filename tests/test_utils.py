@@ -1,12 +1,18 @@
+import os.path
 import tempfile
 
 import numpy as np
+import pytest
 import shapely.geometry
 from affine import Affine
 
 from gdal_boots import PNG, GeoInfo, GTiff, RasterDataset
 
 
+@pytest.mark.skipif(
+    not os.path.exists('tests/fixtures/extra/B04.tif'),
+    reason='extra file "tests/fixtures/extra/B04.tif" does not exist',
+)
 def test_read_by_geom(minsk_polygon):
     bbox = shapely.geometry.shape(minsk_polygon).bounds
 

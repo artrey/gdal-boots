@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import os.path
 import tempfile
 
 import affine
@@ -148,6 +149,10 @@ def test_memory():
         gdal.VectorTranslate(f'{tmp_dir}/test.gpkg', srcdb, format='GPKG')
 
 
+@pytest.mark.skipif(
+    not os.path.exists('tests/fixtures/extra/B04.tif'),
+    reason='extra file "tests/fixtures/extra/B04.tif" does not exist',
+)
 def test_warp(minsk_polygon):
     bbox = shapely.geometry.shape(minsk_polygon).bounds
 
@@ -164,6 +169,10 @@ def test_warp(minsk_polygon):
         assert all((np.array(warped_ds.shape) / 10).round() == warped_ds_r100.shape)
 
 
+@pytest.mark.skipif(
+    not os.path.exists('tests/fixtures/extra/'),
+    reason='extra folder "tests/fixtures/extra/" does not exist',
+)
 def test_fast_warp():
     with open('tests/fixtures/35UNV_field_small.geojson') as fd:
         test_field = json.load(fd)
@@ -231,6 +240,10 @@ def test_fast_warp():
             )
 
 
+@pytest.mark.skipif(
+    not os.path.exists('tests/fixtures/extra/B04.tif'),
+    reason='extra file "tests/fixtures/extra/B04.tif" does not exist',
+)
 def test_bounds():
     with RasterDataset.open('tests/fixtures/extra/B04.tif') as ds:
         assert np.all(ds.bounds() == [
@@ -352,9 +365,11 @@ def test_write():
     ds[2:5, 2:5] = 1
 
 
+@pytest.mark.skipif(not os.getenv('TEST_COMPARE_WARP', ''), reason='skip comparison warp')
 @pytest.mark.skipif(
-    not os.getenv('TEST_COMPARE_WARP', ''),
-    reason='skip comparison warp')
+    not os.path.exists('tests/fixtures/extra/B02_10m.jp2'),
+    reason='extra file "tests/fixtures/extra/B02_10m.jp2" does not exist',
+)
 def test_compare_warp_fast_warp():
     np.random.randint(1622825326.8494937)
 
