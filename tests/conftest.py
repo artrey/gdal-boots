@@ -1,6 +1,10 @@
 import os
+import typing as ty
 
+import numpy as np
 import pytest
+
+from gdal_boots import RasterDataset
 
 # import warnings
 
@@ -58,3 +62,14 @@ def minsk_polygon():
             ]
         ],
     }
+
+
+@pytest.fixture
+def ds_4326_factory():
+    def builder(shape: ty.Tuple[int, int]) -> RasterDataset:
+        ds = RasterDataset.create(shape=shape, dtype=int)
+        ds[:] = np.array(range(1, ds.size + 1)).reshape(ds.shape)
+        ds.set_bounds([(0, 0), ds.shape[-2:][::-1]], epsg=4326)
+        return ds
+
+    return builder

@@ -1,17 +1,44 @@
-from typing import List, Sequence, Union
+from __future__ import annotations
+
+import logging
+import typing as ty
 
 from osgeo import gdal, ogr, osr
 from osgeo.osr import SpatialReference
+
+logger = logging.getLogger(__name__)
+
+RawGeometry = ty.Union[str, dict, ogr.Geometry]
+
+
+class SrsProxy:
+    def __init__(self, srs: ty.Optional[SpatialReference] = None, epsg: ty.Optional[int] = None):
+        if srs is None and epsg is None:
+            raise ValueError("all parameters are None")
+        if srs is None:
+            srs = srs_from_epsg(epsg)
+        self.srs = srs
+
+
+class GeometryProxy:
+    def __init__(self, geom: RawGeometry, srs_proxy: SrsProxy):
+        if not isinstance(geom, ogr.Geometry):
+            geom = GeometryBuilder().create(geom)
+        self.geom = geom
+        self.srs = srs_proxy.srs
+
+    def transform(self, srs_proxy: SrsProxy) -> GeometryProxy:
+        return GeometryProxy(transform_by_srs(self.geom, self.srs, srs_proxy.srs), srs_proxy)
 
 
 class GeometryBuilder:
     def __init__(self, flatten: bool = True):
         self.flatten = flatten
 
-    def __call__(self, geometry: Union[str, dict]) -> ogr.Geometry:
+    def __call__(self, geometry: ty.Union[str, dict]) -> ogr.Geometry:
         return self.create(geometry)
 
-    def create(self, geometry: Union[str, dict]) -> ogr.Geometry:
+    def create(self, geometry: ty.Union[str, dict]) -> ogr.Geometry:
         if isinstance(geometry, str):
             return ogr.CreateGeometryFromJson(geometry)
 
@@ -23,47 +50,47 @@ class GeometryBuilder:
 
         return handler(**geometry)
 
-    def create_polygon(self, coordinates: Sequence, **kwargs) -> ogr.Geometry:
+    def create_polygon(self, coordinates: ty.Sequence, **kwargs) -> ogr.Geometry:
         polygon = ogr.Geometry(ogr.wkbPolygon)
         for ring_coords in coordinates:
             polygon.AddGeometry(self.create_linearring(ring_coords))
         return polygon
 
-    def create_linearring(self, coordinates: List[Sequence], **kwargs) -> ogr.Geometry:
+    def create_linearring(self, coordinates: ty.List[ty.Sequence], **kwargs) -> ogr.Geometry:
         return self._add_points(ogr.Geometry(ogr.wkbLinearRing), coordinates)
 
-    def create_linestring(self, coordinates: Sequence, **kwargs) -> ogr.Geometry:
+    def create_linestring(self, coordinates: ty.Sequence, **kwargs) -> ogr.Geometry:
         return self._add_points(ogr.Geometry(ogr.wkbLineString), coordinates)
 
-    def create_multipolygon(self, coordinates: Sequence, **kwargs) -> ogr.Geometry:
+    def create_multipolygon(self, coordinates: ty.Sequence, **kwargs) -> ogr.Geometry:
         multipolygon = ogr.Geometry(ogr.wkbMultiPolygon)
         for polygon_coordinates in coordinates:
             multipolygon.AddGeometry(self.create_polygon(polygon_coordinates))
         return multipolygon
 
-    def create_point(self, coordinates: Sequence, **kwargs) -> ogr.Geometry:
+    def create_point(self, coordinates: ty.Sequence, **kwargs) -> ogr.Geometry:
         return self._add_point(ogr.Geometry(ogr.wkbPoint), coordinates)
 
-    def create_geometrycollection(self, geometries: List[dict], **kwargs) -> ogr.Geometry:
+    def create_geometrycollection(self, geometries: ty.List[dict], **kwargs) -> ogr.Geometry:
         collection = ogr.Geometry(ogr.wkbGeometryCollection)
         for geometry in geometries:
             collection.AddGeometry(self.create(geometry))
         return collection
 
-    def create_multilinestring(self, coordinates: List[Sequence], **kwargs) -> ogr.Geometry:
+    def create_multilinestring(self, coordinates: ty.List[ty.Sequence], **kwargs) -> ogr.Geometry:
         linestring = ogr.Geometry(ogr.wkbMultiLineString)
         for line_coordinates in coordinates:
             linestring.AddGeometry(self.create_linestring(line_coordinates))
         return linestring
 
-    def _add_point(self, geometry: ogr.Geometry, point: Sequence) -> ogr.Geometry:
+    def _add_point(self, geometry: ogr.Geometry, point: ty.Sequence) -> ogr.Geometry:
         if self.flatten:
             geometry.AddPoint_2D(*point[:2])
         else:
             geometry.AddPoint(*point)
         return geometry
 
-    def _add_points(self, geometry: ogr.Geometry, points: Sequence) -> ogr.Geometry:
+    def _add_points(self, geometry: ogr.Geometry, points: ty.Sequence) -> ogr.Geometry:
         for point in points:
             self._add_point(geometry, point)
         return geometry

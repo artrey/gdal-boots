@@ -4,6 +4,7 @@ import io
 import logging
 import math
 import os
+import typing as ty
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Number
@@ -30,7 +31,7 @@ except ImportError:
 from osgeo import gdal, ogr, osr
 from osgeo.osr import SpatialReference
 
-from .geometry import GeometryBuilder, srs_from_epsg
+from .geometry import GeometryBuilder, GeometryProxy, RawGeometry, SrsProxy, srs_from_epsg
 from .geometry import transform as geometry_transform
 from .geometry import transform_by_srs
 from .options import DriverOptions
@@ -41,8 +42,6 @@ except ImportError:
     import json
 
 logger = logging.getLogger(__name__)
-
-RawGeometry = Union[dict, ogr.Geometry]
 
 DTYPE_TO_GDAL = {
     np.uint8: gdal.GDT_Byte,
@@ -102,6 +101,22 @@ def epsg_from_srs(srs: SpatialReference) -> int:
     if not value:
         raise ValueError("Could not get epsg code")
     return int(value)
+
+
+def check_maximum_one_value_not_none(*values):
+    if not values:
+        return True
+    bit_repr = sum([2**idx if val is not None else 0 for idx, val in enumerate(values)])
+    return bit_repr & (bit_repr - 1) == 0
+
+
+def proportional_coef(ratio):
+    if abs(ratio - 1) < 10e-6:
+        return 1
+    elif ratio > 1:
+        return 1 / math.floor(ratio)
+    else:
+        return math.floor(1 / ratio)
 
 
 @dataclass
@@ -606,9 +621,10 @@ class RasterDataset:
         bbox_srs: SpatialReference = None,
         resampling: Resampling = Resampling.near,
         extra_ds: List[RasterDataset] = None,
-        resolution: Tuple[int, int] = None,
+        resolution: Tuple[ty.Union[int, float], ty.Union[int, float]] = None,
         out_epsg: int = None,
         out_proj4: str = None,
+        out_srs: SpatialReference = None,
         nodata=None,
         out_nodata=None,
     ) -> RasterDataset:
@@ -617,17 +633,19 @@ class RasterDataset:
         """
         extra_ds = extra_ds or []
         x_res, y_res = resolution or (None, None)
-        out_srs = None
 
-        if out_proj4 and out_epsg:
-            logger.warning("both parameters out_proj4 and out_epsg were specified, out_epsg will be ignored")
-        if out_epsg:
-            srs_obj = osr.SpatialReference()
-            srs_obj.ImportFromEPSG(out_epsg)
-            out_srs = srs_obj
-        if out_proj4:
+        if check_maximum_one_value_not_none(out_srs, out_proj4, out_epsg):
+            logger.warning(
+                "several out parameters provided. Will be taken first from the list: out_srs -> out_proj4 -> out_epsg"
+            )
+        if out_srs is not None:
+            pass
+        elif out_proj4 is not None:
             out_srs = osr.SpatialReference()
             out_srs.ImportFromProj4(out_proj4)
+        elif out_epsg is not None:
+            out_srs = srs_from_epsg(out_epsg)
+
         if not out_srs:
             out_srs = self.geoinfo.srs
 
@@ -727,6 +745,56 @@ class RasterDataset:
         ds_warp = RasterDataset.create(shape=warp_img.shape, geoinfo=geoinfo, dtype=warp_img.dtype)
         ds_warp[:] = warp_img
         return ds_warp
+
+    def crop_by_geometry_strict(
+        self,
+        geometry: GeometryProxy,
+        extra_ds: ty.Optional[ty.List[RasterDataset]] = None,
+        desired_resolution: ty.Optional[ty.Tuple[float, float]] = None,
+        out_srs_proxy: ty.Optional[SrsProxy] = None,
+        resampling: Resampling = Resampling.near,
+        apply_mask: bool = True,
+    ) -> Tuple[RasterDataset, RasterDataset]:
+        extra_ds = extra_ds or []
+
+        ds_srs = self.geoinfo.srs
+        if not ds_srs.IsSame(geometry.srs):
+            geometry = geometry.transform(SrsProxy(srs=ds_srs))
+
+        bbox = geometry.geom.GetEnvelope()
+        warped_ds = self.warp(
+            (bbox[0], bbox[2], bbox[1], bbox[3]),
+            bbox_srs=ds_srs,
+            extra_ds=extra_ds,
+            out_srs=out_srs_proxy.srs if out_srs_proxy else None,
+            resampling=resampling,
+        )
+
+        if desired_resolution:
+            rx, ry = warped_ds.resolution
+            coef_x = proportional_coef(rx / desired_resolution[0])
+            coef_y = proportional_coef(ry / desired_resolution[1])
+            if coef_x != 1 or coef_y != 1:
+                warped_ds = self.warp(
+                    (bbox[0], bbox[2], bbox[1], bbox[3]),
+                    bbox_srs=ds_srs,
+                    extra_ds=extra_ds,
+                    out_srs=out_srs_proxy.srs if out_srs_proxy else None,
+                    resampling=resampling,
+                    resolution=(rx * coef_x, ry * coef_y),
+                )
+
+        vect_ds = VectorDataset.open(geometry.geom.ExportToJson(), srs=ds_srs)
+        mask_ds = RasterDataset.create(warped_ds.shape, warped_ds.dtype, geoinfo=warped_ds.geoinfo)
+        vect_ds.rasterize(mask_ds)
+        mask_img = mask_ds[:]
+
+        if apply_mask:
+            img = warped_ds[:].copy()
+            img[mask_img == 0] = self.nodata[0] or 0
+            warped_ds[:] = img
+
+        return warped_ds, mask_ds
 
     def crop_by_geometry(
         self,
