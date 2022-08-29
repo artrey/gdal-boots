@@ -634,7 +634,7 @@ class RasterDataset:
         extra_ds = extra_ds or []
         x_res, y_res = resolution or (None, None)
 
-        if check_maximum_one_value_not_none(out_srs, out_proj4, out_epsg):
+        if not check_maximum_one_value_not_none(out_srs, out_proj4, out_epsg):
             logger.warning(
                 "several out parameters provided. Will be taken first from the list: out_srs -> out_proj4 -> out_epsg"
             )
