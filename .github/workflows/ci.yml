@@ -51,6 +51,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             software-properties-common g++ gdal-bin libgdal-dev
           python -m pip install --upgrade pip
+          gdal_version=$(gdal-config --version)
+          sed -i "s/gdal/gdal==$gdal_version/gI" requirements.txt
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
