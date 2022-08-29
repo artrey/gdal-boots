@@ -49,7 +49,7 @@ jobs:
           sudo apt-add-repository -y ppa:ubuntugis/ubuntugis-unstable
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            software-properties-common g++ gdal-bin libgdal-dev
+            software-properties-common g++ gdal-bin=3.0.4+dfsg-1build3 libgdal-dev=3.0.4+dfsg-1build3
           python -m pip install --upgrade pip
           gdal_version=$(gdal-config --version)
           sed -i "s/gdal/gdal==$gdal_version/gI" requirements.txt
