@@ -72,10 +72,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Python Semantic Release
-        uses: relekang/python-semantic-release@master
+      - name: Set up python
+        uses: actions/setup-python@v2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          repository_username: ${{ secrets.PYPI_USER }}
-          repository_password: ${{ secrets.PYPI_PASSWORD }}
-          args: -D branch=${{ github.ref_name }}
+          python-version: 3.9
+
+      - name: Configuring
+        run: |
+          pip install python-semantic-release==7.31.3
+          git fetch --tags
+          git config --global user.name "semantic-release"
+          git config --global user.email "semantic-release"
+
+      - name: Python Semantic Release
+        env:
+          CI: 'true'
+          GITHUB_ACTIONS: 'true'
+          REPOSITORY_USERNAME: ${{ secrets.PYPI_USER }}
+          REPOSITORY_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+          REPOSITORY_URL: https://pypi.onesoil.ai
+        run: semantic-release publish -D branch=${{ github.ref_name }}
