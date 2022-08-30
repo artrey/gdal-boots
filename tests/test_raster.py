@@ -3,6 +3,7 @@ import json
 import os.path
 import sys
 import tempfile
+import typing as ty
 
 import affine
 import numpy as np
@@ -13,7 +14,7 @@ from osgeo import gdal
 from threadpoolctl import threadpool_limits
 
 from gdal_boots.gdal import GeoInfo, RasterDataset
-from gdal_boots.geometry import GeometryBuilder, to_geojson
+from gdal_boots.geometry import GeometryBuilder, GeometryProxy, SrsProxy, to_geojson
 from gdal_boots.geometry import transform as geometry_transform
 from gdal_boots.options import GPKG, PNG, GTiff, JP2OpenJPEG
 
@@ -112,6 +113,7 @@ def test_vectorize():
                 v_ds.to_file(fd.name, GPKG())
 
 
+@pytest.mark.visualize
 def test_memory():
     import json
 
@@ -364,6 +366,26 @@ def test_crop_by_geometry():
     assert (img.min(), img.max()) == (0, 1)
 
 
+@pytest.mark.skipif(
+    not os.path.exists("tests/fixtures/extra/B04.tif"),
+    reason='extra file "tests/fixtures/extra/B04.tif" does not exist',
+)
+@pytest.mark.visualize
+def test_read_by_geom_visualize(minsk_polygon):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        with RasterDataset.open("tests/fixtures/extra/B04.tif") as ds:
+            rgba_ds = RasterDataset.create((4, *ds.shape), ds.dtype, ds.geoinfo)
+            rgba_ds[0, :] = ds[:]
+            rgba_ds[1, :] = ds[:]
+            rgba_ds[2, :] = ds[:]
+            # no transparency
+            rgba_ds[3, :] = np.iinfo(rgba_ds.dtype).max
+
+            cropped_ds, mask = rgba_ds.crop_by_geometry(minsk_polygon)
+            cropped_ds.to_file(f"{tmp_dir}/cropped_by_polygon.png", PNG())
+            cropped_ds.to_file(f"{tmp_dir}/warped_by_mask.tif", GTiff())
+
+
 def test_write():
     img = np.ones((3, 5, 5))
     img[0] = 1
@@ -525,18 +547,58 @@ def test_raster_union():
         [[{"type": "Point", "coordinates": coord} for coord in [[0.2, 2.5], [0, 0.1], [10, 10]]], [1, 11, None]],
     ],
 )
-def test_values_by_points(points, expected):
-    ds = RasterDataset.create(shape=(3, 5), dtype=int)
-    ds[:] = np.array(range(1, ds.size + 1)).reshape(ds.shape)
-    ds.set_bounds([(0, 0), ds.shape[::-1]], epsg=4326)
-
+def test_values_by_points(points, expected, ds_4326_factory):
+    ds = ds_4326_factory(shape=(3, 5))
     assert ds.values_by_points(points) == expected
 
 
-def test_values_by_points_multiband():
-    ds = RasterDataset.create(shape=(2, 3, 5), dtype=int)
-    ds[:] = np.array(range(1, ds.size + 1)).reshape(ds.shape)
-    ds.set_bounds([(0, 0), ds.shape[-2:][::-1]], epsg=4326)
-
+def test_values_by_points_multiband(ds_4326_factory):
+    ds = ds_4326_factory(shape=(2, 3, 5))
     value = ds.values_by_points([{"type": "Point", "coordinates": [0.2, 2.5]}])[0]
     assert np.array_equal(value, np.array([1, 16]))
+
+
+@pytest.mark.parametrize(
+    "epsg_in,epsg_out,desired_resolution,expected_shape",
+    [
+        [4326, 4326, None, (4, 1)],
+        [4326, 3857, None, (4, 1)],
+        [4326, 4326, (0.8, 0.8), (4, 1)],
+        [4326, 4326, (0.6, 0.6), (4, 1)],
+        [4326, 4326, (0.4, 0.4), (8, 2)],
+        [4326, 4326, (0.35, 0.35), (8, 2)],
+        [4326, 4326, (0.15, 0.15), (20, 5)],
+        [4326, 3857, (1000, 1000), (388, 89)],
+    ],
+)
+def test_crop_by_geometry_strict(
+    epsg_in: int,
+    epsg_out: int,
+    desired_resolution: ty.Optional[ty.Tuple[float, float]],
+    expected_shape: ty.Tuple[int, int],
+    ds_4326_factory,
+):
+    ds = ds_4326_factory(shape=(10, 10))
+    geom_json = {"type": "Polygon", "coordinates": [[[0.2, 2.5], [1, 2.5], [1, 6], [0.2, 6], [0.2, 2.5]]]}
+    resol, _ = ds.crop_by_geometry_strict(
+        GeometryProxy(geom=geom_json, srs_proxy=SrsProxy(epsg=epsg_in)),
+        out_srs_proxy=SrsProxy(epsg=epsg_out),
+        desired_resolution=desired_resolution,
+    )
+    assert resol[:].shape == expected_shape
+
+
+@pytest.mark.visualize
+def test_crop_by_geometry_strict_visualize(ds_4326_factory):
+    ds = ds_4326_factory(shape=(10, 10))
+    geom_json = {"type": "Polygon", "coordinates": [[[0.2, 2.5], [1, 2.5], [2, 6], [0.7, 6], [0.2, 2.5]]]}
+    resol, _ = ds.crop_by_geometry_strict(
+        GeometryProxy(geom=geom_json, srs_proxy=SrsProxy(epsg=4326)),
+        out_srs_proxy=SrsProxy(epsg=4326),
+        desired_resolution=(0.05, 0.05),
+    )
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        ds.to_file(f"{tmp_dir}/full.tiff", GTiff())
+        json.dump(geom_json, open(f"{tmp_dir}/boundary.geojson", "w"))
+        resol.to_file(f"{tmp_dir}/strict.tiff", GTiff())
