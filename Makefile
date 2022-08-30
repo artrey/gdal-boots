@@ -9,3 +9,11 @@ test_3.4:
 
 build-wheel:
 	python setup.py bdist_wheel
+
+upload:
+	twine upload \
+		--skip-existing \
+		--repository-url https://pypi.onesoil.ai/ \
+		-u ${ONESOIL_PYPI_USER} \
+		-p ${ONESOIL_PYPI_PASSWORD} \
+		dist/*

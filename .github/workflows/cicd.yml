@@ -64,8 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - test
-#    if: ${{ github.repository == 'habibutsu/gdal-boots' && github.event_name == 'push' && github.ref_name == 'main' }}
-    if: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
+    if: ${{ github.repository == 'habibutsu/gdal-boots' && github.event_name == 'push' && github.ref_name == 'main' }}
     steps:
       - name: Check out the repo
         uses: actions/checkout@v2
