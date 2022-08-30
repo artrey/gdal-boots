@@ -76,6 +76,5 @@ jobs:
         uses: relekang/python-semantic-release@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          repository_url: https://pypi.onesoil.ai
           repository_username: ${{ secrets.PYPI_USER }}
           repository_password: ${{ secrets.PYPI_PASSWORD }}
