@@ -16,8 +16,8 @@ jobs:
         include:
           - os: ubuntu-20.04
             gdal_version: 3.0.4+dfsg-1build3
-          - os: ubuntu-22.04
-            gdal_version: 3.4.1+dfsg-1build4
+#          - os: ubuntu-22.04
+#            gdal_version: 3.4.1+dfsg-1build4
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out the repo
