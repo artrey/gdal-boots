@@ -217,3 +217,24 @@ def make_valid(geometry: ogr.Geometry) -> ogr.Geometry:
         return valid_geometry
 
     return valid_geometry
+
+
+def calc_best_resolution_bbox(
+    x_min: float,
+    x_max: float,
+    y_min: float,
+    y_max: float,
+    orig_resolution: ty.Tuple[float, float],
+) -> ty.Tuple[float, float]:
+    dx = x_max - x_min
+    dy = y_max - y_min
+    cells_x = max(1, round(dx / orig_resolution[0] + 10e-9))  # 10e-9 for "true" rounding: 8.5 -> 9
+    cells_y = max(1, round(dy / orig_resolution[1] + 10e-9))
+    return dx / cells_x, dy / cells_y
+
+
+def calc_best_resolution(geometry: RawGeometry, orig_resolution: ty.Tuple[float, float]) -> ty.Tuple[float, float]:
+    if not isinstance(geometry, ogr.Geometry):
+        geometry = GeometryBuilder().create(geometry)
+    x_min, x_max, y_min, y_max = geometry.GetEnvelope()
+    return calc_best_resolution_bbox(x_min, x_max, y_min, y_max, orig_resolution)

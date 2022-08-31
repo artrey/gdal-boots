@@ -3,7 +3,6 @@ import json
 import os.path
 import sys
 import tempfile
-import typing as ty
 
 import affine
 import numpy as np
@@ -14,7 +13,7 @@ from osgeo import gdal
 from threadpoolctl import threadpool_limits
 
 from gdal_boots.gdal import GeoInfo, RasterDataset
-from gdal_boots.geometry import GeometryBuilder, GeometryProxy, SrsProxy, to_geojson
+from gdal_boots.geometry import GeometryBuilder, to_geojson
 from gdal_boots.geometry import transform as geometry_transform
 from gdal_boots.options import GPKG, PNG, GTiff, JP2OpenJPEG
 
@@ -556,49 +555,3 @@ def test_values_by_points_multiband(ds_4326_factory):
     ds = ds_4326_factory(shape=(2, 3, 5))
     value = ds.values_by_points([{"type": "Point", "coordinates": [0.2, 2.5]}])[0]
     assert np.array_equal(value, np.array([1, 16]))
-
-
-@pytest.mark.parametrize(
-    "epsg_in,epsg_out,desired_resolution,expected_shape",
-    [
-        [4326, 4326, None, (4, 1)],
-        [4326, 3857, None, (4, 1)],
-        [4326, 4326, (0.8, 0.8), (4, 1)],
-        [4326, 4326, (0.6, 0.6), (4, 1)],
-        [4326, 4326, (0.4, 0.4), (8, 2)],
-        [4326, 4326, (0.35, 0.35), (8, 2)],
-        [4326, 4326, (0.15, 0.15), (20, 5)],
-        [4326, 3857, (1000, 1000), (388, 89)],
-    ],
-)
-def test_crop_by_geometry_strict(
-    epsg_in: int,
-    epsg_out: int,
-    desired_resolution: ty.Optional[ty.Tuple[float, float]],
-    expected_shape: ty.Tuple[int, int],
-    ds_4326_factory,
-):
-    ds = ds_4326_factory(shape=(10, 10))
-    geom_json = {"type": "Polygon", "coordinates": [[[0.2, 2.5], [1, 2.5], [1, 6], [0.2, 6], [0.2, 2.5]]]}
-    resol, _ = ds.crop_by_geometry_strict(
-        GeometryProxy(geom=geom_json, srs_proxy=SrsProxy(epsg=epsg_in)),
-        out_srs_proxy=SrsProxy(epsg=epsg_out),
-        desired_resolution=desired_resolution,
-    )
-    assert resol[:].shape == expected_shape
-
-
-@pytest.mark.visualize
-def test_crop_by_geometry_strict_visualize(ds_4326_factory):
-    ds = ds_4326_factory(shape=(10, 10))
-    geom_json = {"type": "Polygon", "coordinates": [[[0.2, 2.5], [1, 2.5], [2, 6], [0.7, 6], [0.2, 2.5]]]}
-    resol, _ = ds.crop_by_geometry_strict(
-        GeometryProxy(geom=geom_json, srs_proxy=SrsProxy(epsg=4326)),
-        out_srs_proxy=SrsProxy(epsg=4326),
-        desired_resolution=(0.05, 0.05),
-    )
-
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        ds.to_file(f"{tmp_dir}/full.tiff", GTiff())
-        json.dump(geom_json, open(f"{tmp_dir}/boundary.geojson", "w"))
-        resol.to_file(f"{tmp_dir}/strict.tiff", GTiff())

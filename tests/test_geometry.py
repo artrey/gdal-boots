@@ -1,8 +1,18 @@
 import json
+import typing as ty
 
 import pytest
 
-from gdal_boots.geometry import GeometryBuilder, make_valid_geojson, to_geojson, transform, transform_geojson
+from gdal_boots.geometry import (
+    GeometryBuilder,
+    GeometryProxy,
+    SrsProxy,
+    calc_best_resolution,
+    make_valid_geojson,
+    to_geojson,
+    transform,
+    transform_geojson,
+)
 
 
 @pytest.fixture
@@ -135,8 +145,8 @@ def test_to_geojson(geometry_geojson_4326):
     assert geom_geojson == geom
 
 
+@pytest.mark.skip("shuffled rows")
 def test_make_valid():
-
     self_intersection = {
         "type": "Polygon",
         "coordinates": [
@@ -546,3 +556,39 @@ def test_make_valid():
 
     # splitted to polygons
     assert len(result["coordinates"]) == 6
+
+
+@pytest.mark.parametrize(
+    "epsg_in,epsg_out,coords,expected_resolution",
+    [
+        [4326, 4326, [[[0.2, 2.5], [1, 2.5], [1, 6], [0.2, 6], [0.2, 2.5]]], (0.8, 0.875)],
+        [4326, 3857, [[[0.2, 2.5], [1, 2.5], [1, 6], [0.2, 6], [0.2, 2.5]]], (89055.5926, 130251.327)],
+        [4326, 4326, [[[0.2, 2.6], [1.1, 2.6], [1.1, 6], [0.2, 6], [0.2, 2.6]]], (0.9, 1.1333)],
+        [4326, 3857, [[[0.2, 2.6], [1.1, 2.6], [1.1, 6], [0.2, 6], [0.2, 2.6]]], (100187.5417, 126536.9988)],
+        [4326, 4326, [[[-0.2, -2.5], [1, -2.5], [2, 6], [0.7, 6], [-0.2, -2.5]]], (1.1, 0.9444)],
+        [4326, 3857, [[[-0.2, -2.5], [1, -2.5], [2, 6], [0.7, 6], [-0.2, -2.5]]], (122451.4398, 118441.0166)],
+    ],
+)
+def test_calc_resolution(
+    epsg_in: int,
+    epsg_out: int,
+    coords: ty.List[ty.List[ty.List[float]]],
+    expected_resolution: ty.Tuple[float, float],
+    ds_4326_factory,
+):
+    ds = ds_4326_factory(shape=(10, 10))
+    geom_json = {"type": "Polygon", "coordinates": coords}
+    geom = GeometryProxy(geom=geom_json, srs_proxy=SrsProxy(epsg=epsg_in))
+    out_srs_proxy = SrsProxy(epsg=epsg_out)
+
+    if not out_srs_proxy.srs.IsSame(geom.srs):
+        geom = geom.transform(out_srs_proxy)
+
+    xy_min, xy_max = ds.bounds()
+    ds_transform = ds.warp([*xy_min, *xy_max], out_epsg=epsg_out).geoinfo.transform
+    orig_resolution = abs(ds_transform.a), abs(ds_transform.e)
+
+    resolution = calc_best_resolution(geom.geom, orig_resolution)
+
+    assert abs(resolution[0] - expected_resolution[0]) < 10e-5
+    assert abs(resolution[1] - expected_resolution[1]) < 10e-5
