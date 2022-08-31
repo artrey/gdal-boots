@@ -12,6 +12,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        gdal_version: [3.0.4+dfsg-1build3, 3.4.1+dfsg-1build4]
     steps:
       - name: Check out the repo
         uses: actions/checkout@v2
@@ -47,18 +50,17 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             software-properties-common \
             g++ \
-            python3-gdal=3.0.4+dfsg-1build3 \
-            libgdal-dev=3.0.4+dfsg-1build3 \
-            gdal-bin=3.0.4+dfsg-1build3 \
-            gdal-data=3.0.4+dfsg-1build3
+            python3-gdal=${{ matrix.gdal_version }} \
+            libgdal-dev=${{ matrix.gdal_version }} \
+            gdal-bin=${{ matrix.gdal_version }} \
+            gdal-data=${{ matrix.gdal_version }}
           pip install setuptools==57.5.0 numpy
-          gdal_version=$(gdal-config --version)
-          sed -i "s/gdal/gdal==$gdal_version/gI" requirements.txt
+          pip install gdal==$(gdal-config --version)
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
       - name: Test with pytest
-        run: pytest --cov=gdal_boots
+        run: pytest --cov=gdal_boots -k 'not visualize'
 
   release:
     runs-on: ubuntu-latest
