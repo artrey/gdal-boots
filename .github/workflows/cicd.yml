@@ -11,10 +11,14 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
     strategy:
       matrix:
-        gdal_version: [3.0.4+dfsg-1build3, 3.4.1+dfsg-1build4]
+        include:
+          - os: ubuntu-20.04
+            gdal_version: 3.0.4+dfsg-1build3
+          - os: ubuntu-22.04
+            gdal_version: 3.4.1+dfsg-1build4
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Check out the repo
         uses: actions/checkout@v2
