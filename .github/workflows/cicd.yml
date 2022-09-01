@@ -19,7 +19,7 @@ jobs:
           - 3.2.3
           - 3.3.3
 #          - 3.4.0  # breaking changes
-          - 3.4.3
+#          - 3.4.3  # breaking changes
 #          - 3.5.1  # breaking changes
     runs-on: ubuntu-latest
     container: osgeo/gdal:ubuntu-small-${{ matrix.image_tag_version }}
