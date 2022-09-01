@@ -51,8 +51,14 @@ jobs:
           pip3 install -r requirements.txt
           pip3 install -r requirements-dev.txt
 
-      - name: Analyze source code
-        run: pre-commit run -a
+      - name: Check code style with black
+        run: black --check .
+
+      - name: Check imports ordering with isort
+        run: isort -c .
+
+      - name: Lint with flake8
+        run: flake8 .
 
 #      - name: Install dependencies
 #        run: |
