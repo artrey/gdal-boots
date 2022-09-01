@@ -1,4 +1,4 @@
-from __future__ import annotations
+# from __future__ import annotations
 
 import logging
 import typing as ty
@@ -27,7 +27,7 @@ class GeometryProxy:
         self.geom = geom
         self.srs = srs_proxy.srs
 
-    def transform(self, srs_proxy: SrsProxy) -> GeometryProxy:
+    def transform(self, srs_proxy: SrsProxy) -> "GeometryProxy":
         return GeometryProxy(transform_by_srs(self.geom, self.srs, srs_proxy.srs), srs_proxy)
 
 

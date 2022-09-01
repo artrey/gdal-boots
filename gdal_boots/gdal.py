@@ -1,4 +1,4 @@
-from __future__ import annotations
+# from __future__ import annotations
 
 import io
 import logging
@@ -279,7 +279,7 @@ class RasterDataset:
     def get_band_description(self, idx):
         return self.ds.GetRasterBand(idx + 1).GetDescription()
 
-    def as_type(self, dtype) -> RasterDataset:
+    def as_type(self, dtype) -> "RasterDataset":
         ds = type(self).create(self.shape, dtype, self.geoinfo)
         ds.meta = self.meta
         ds[:] = self[:].astype(dtype)
@@ -482,7 +482,7 @@ class RasterDataset:
         self.ds = None
 
     @classmethod
-    def open(cls, filename, open_flag=gdal.OF_RASTER) -> RasterDataset:
+    def open(cls, filename, open_flag=gdal.OF_RASTER) -> "RasterDataset":
         ds = gdal.OpenEx(filename, open_flag)
         obj = cls(ds)
         obj.filename = filename
@@ -494,7 +494,7 @@ class RasterDataset:
         shape: Union[Tuple[int, int, int], Tuple[int, int]],
         dtype=int,
         geoinfo: GeoInfo = None,
-    ) -> RasterDataset:
+    ) -> "RasterDataset":
         if len(shape) > 2:
             bands, height, width = shape
         else:
@@ -522,7 +522,7 @@ class RasterDataset:
         ds.FlushCache()
 
     @classmethod
-    def from_stream(cls, stream: io.BytesIO, open_flag=gdal.OF_RASTER | gdal.GA_ReadOnly, ext=None) -> RasterDataset:
+    def from_stream(cls, stream: io.BytesIO, open_flag=gdal.OF_RASTER | gdal.GA_ReadOnly, ext=None) -> "RasterDataset":
         mem_id = f"/vsimem/{uuid4()}"
         if ext:
             mem_id = f"{mem_id}.{ext}"
@@ -542,7 +542,7 @@ class RasterDataset:
         stream.write(data)
 
     @classmethod
-    def from_bytes(cls, data: bytes, open_flag=gdal.OF_RASTER | gdal.GA_ReadOnly, ext=None) -> RasterDataset:
+    def from_bytes(cls, data: bytes, open_flag=gdal.OF_RASTER | gdal.GA_ReadOnly, ext=None) -> "RasterDataset":
         mem_id = f"/vsimem/{uuid4()}"
         if ext:
             mem_id = f"{mem_id}.{ext}"
@@ -570,7 +570,7 @@ class RasterDataset:
         gdal.Unlink(mem_id)
         return data
 
-    def to_vector(self, field_id=-1, callback: Callable[[float, str, Any], None] = None) -> VectorDataset:
+    def to_vector(self, field_id=-1, callback: Callable[[float, str, Any], None] = None) -> "VectorDataset":
         """
 
         drv = ogr.GetDriverByName("Memory")
@@ -619,14 +619,14 @@ class RasterDataset:
         bbox_epsg: int = 4326,
         bbox_srs: SpatialReference = None,
         resampling: Resampling = Resampling.near,
-        extra_ds: List[RasterDataset] = None,
+        extra_ds: List["RasterDataset"] = None,
         resolution: Tuple[float, float] = None,
         out_epsg: int = None,
         out_proj4: str = None,
         out_srs: SpatialReference = None,
         nodata=None,
         out_nodata=None,
-    ) -> RasterDataset:
+    ) -> "RasterDataset":
         """
         bbox: (x_min, y_min, x_max, y_max)
         """
@@ -738,7 +738,7 @@ class RasterDataset:
         self,
         bbox: Tuple[float, float, float, float],
         resolution: Tuple[int, int] = None,
-    ) -> RasterDataset:
+    ) -> "RasterDataset":
         warp_img, geoinfo = self.fast_warp_as_array(bbox, resolution)
 
         ds_warp = RasterDataset.create(shape=warp_img.shape, geoinfo=geoinfo, dtype=warp_img.dtype)
@@ -750,14 +750,14 @@ class RasterDataset:
         geometry: RawGeometry,
         epsg: int = 4326,
         geometry_srs: SpatialReference = None,
-        extra_ds: List[RasterDataset] = None,
+        extra_ds: List["RasterDataset"] = None,
         resolution: Tuple[float, float] = None,
         out_epsg: int = None,
         out_proj4: str = None,
         out_srs: SpatialReference = None,
         resampling: Resampling = Resampling.near,
         apply_mask: bool = True,
-    ) -> Tuple[RasterDataset, RasterDataset]:
+    ) -> Tuple["RasterDataset", "RasterDataset"]:
         if not isinstance(geometry, ogr.Geometry):
             geometry = GeometryBuilder().create(geometry)
         extra_ds = extra_ds or []
@@ -789,7 +789,7 @@ class RasterDataset:
             warped_ds[:] = img
         return warped_ds, mask_ds
 
-    def union(self, other_ds: List[RasterDataset]) -> RasterDataset:
+    def union(self, other_ds: List["RasterDataset"]) -> "RasterDataset":
         geom = self.bounds_polygon()
         for ds in other_ds:
             geom = geom.Union(ds.bounds_polygon())

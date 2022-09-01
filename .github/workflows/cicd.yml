@@ -11,22 +11,23 @@ on:
 
 jobs:
   test:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-20.04
-            gdal_version: 3.0.4+dfsg-1build3
-#          - os: ubuntu-22.04
-#            gdal_version: 3.4.1+dfsg-1build4
-    runs-on: ${{ matrix.os }}
+#    strategy:
+#      matrix:
+#        include:
+#          - os: ubuntu-20.04
+#            gdal_version: 3.0.4+dfsg-1build3
+##          - os: ubuntu-22.04
+##            gdal_version: 3.4.1+dfsg-1build4
+    runs-on: ubuntu-latest
+    container: osgeo/gdal:ubuntu-small-3.0.4
     steps:
-      - name: Check out the repo
-        uses: actions/checkout@v2
+#      - name: Check out the repo
+#        uses: actions/checkout@v2
 
-      - name: Set up python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.9
+#      - name: Set up python
+#        uses: actions/setup-python@v2
+#        with:
+#          python-version: 3.9
 
       - name: Get pip cache dir
         id: pip-cache-dir
@@ -42,26 +43,30 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Analyze source code
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends git
-          pip install pre-commit==2.20.0
-          pre-commit run -a
-
       - name: Install dependencies
         run: |
-          sudo apt-get install -y --no-install-recommends \
-            software-properties-common \
-            g++ \
-            python3-gdal=${{ matrix.gdal_version }} \
-            libgdal-dev=${{ matrix.gdal_version }} \
-            gdal-bin=${{ matrix.gdal_version }} \
-            gdal-data=${{ matrix.gdal_version }}
-          pip install setuptools==57.5.0 numpy
-          pip install gdal==$(gdal-config --version)
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends git python3-pip
+          pip install setuptools
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
+
+      - name: Analyze source code
+        run: pre-commit run -a
+
+#      - name: Install dependencies
+#        run: |
+#          sudo apt-get install -y --no-install-recommends \
+#            software-properties-common \
+#            g++ \
+#            python3-gdal=${{ matrix.gdal_version }} \
+#            libgdal-dev=${{ matrix.gdal_version }} \
+#            gdal-bin=${{ matrix.gdal_version }} \
+#            gdal-data=${{ matrix.gdal_version }}
+#          pip install setuptools==57.5.0 numpy
+#          pip install gdal==$(gdal-config --version)
+#          pip install -r requirements.txt
+#          pip install -r requirements-dev.txt
 
       - name: Test with pytest
         run: pytest --cov=gdal_boots -k 'not visualize'
